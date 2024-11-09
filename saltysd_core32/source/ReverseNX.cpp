@@ -135,8 +135,8 @@ uint8_t GetOperationMode() {
 void GetDefaultDisplayResolution(int* width, int* height) {
 	if (*def_shared) {
 		((_ZN2nn2oe27GetDefaultDisplayResolutionEPiS1_)(Address_weaks.GetDefaultDisplayResolution))(width, height);
-		if (*width == 1920) *isDocked_shared = true;
-		else *isDocked_shared = false;
+		if (*width == 1280) *isDocked_shared = false;
+		else *isDocked_shared = true;
 	}
 	else if (*isDocked_shared) {
 		*width = 1920;
