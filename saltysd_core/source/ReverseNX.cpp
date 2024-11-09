@@ -48,6 +48,8 @@ struct Shared {
 	bool pluginActive;
 } PACKED;
 
+Shared* ReverseNX;
+
 const char* ver = "3.0.0";
 
 ptrdiff_t SharedMemoryOffset2 = -1;
