@@ -69,6 +69,15 @@ extern "C" {
 #include "switch_min/services/nfc.h"
 #include "switch_min/services/wlaninf.h"
 #include "switch_min/services/pctl.h"
+#include "switch_min/services/nv.h"
+
+#include "switch_min/nvidia/ioctl.h"
+#include "switch_min/nvidia/map.h"
+#include "switch_min/nvidia/address_space.h"
+#include "switch_min/nvidia/channel.h"
+#include "switch_min/nvidia/info.h"
+#include "switch_min/nvidia/fence.h"
+#include "switch_min/nvidia/gpu_channel.h"
 
 #include "switch_min/applets/libapplet.h"
 #include "switch_min/applets/pctlauth.h"
