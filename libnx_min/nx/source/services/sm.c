@@ -163,8 +163,20 @@ Result smGetService(Service* service_out, const char* name)
 
 Result smGetServiceOriginal(Handle* handle_out, u64 name)
 {
-    memcpy(armGetTls(), GetServiceHandleHeader, sizeof(GetServiceHandleHeader));
-    memcpy((u8 *)armGetTls() + 0x20, &name, sizeof(name));
+    IpcCommand c;
+    ipcInitialize(&c);
+
+    struct {
+        u64 magic;
+        u64 cmd_id;
+        u64 service_name;
+    } *raw;
+
+    raw = serviceIpcPrepareHeader(&g_smSrv, &c, sizeof(*raw));
+
+    raw->magic = SFCI_MAGIC;
+    raw->cmd_id = 1;
+    raw->service_name = name;
 
     Result rc = serviceIpcDispatch(&g_smSrv);
 
