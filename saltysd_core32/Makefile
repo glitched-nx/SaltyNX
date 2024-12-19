@@ -42,7 +42,7 @@ EXEFS_SRC	:=	exefs_src
 ARCH_DEBUG		:=	-march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIE -fno-plt
 ARCH			:=	-march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIE -fno-plt -s
 
-CFLAGS			:=	-Wall -Wno-pointer-to-int-cast -O2 \
+CFLAGS			:=	-Wall -Wno-pointer-to-int-cast -Os \
 					-ffast-math \
 					$(ARCH) $(DEFINES)
 
