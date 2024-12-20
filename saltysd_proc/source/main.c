@@ -20,6 +20,8 @@
 #define	NVDISP_GET_MODE 0x80380204
 #define	NVDISP_SET_MODE 0x40380205
 #define NVDISP_VALIDATE_MODE 0xC038020A
+#define NVDISP_PANEL_GET_VENDOR_ID 0xC003021A
+#define NVDISP_CTRL_IS_DISPLAY_OLED 0x80010224
 #define DSI_CLOCK_HZ 234000000llu
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -51,6 +53,13 @@ struct NxFpsSharedBlock {
 	struct resolutionCalls viewportCalls[8];
 	bool forceOriginalRefreshRate;
 } NX_PACKED;
+
+struct displayData {
+    uint8_t vendorID[3];
+    bool isOLED;
+} NX_PACKED;
+
+struct displayData DISPLAY_A = {0};
 
 struct NxFpsSharedBlock* nx_fps = 0;
 
@@ -367,7 +376,7 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
         }
         if (!skip) new_refreshRate = 60;
     }
-    uint32_t pixelClock = (9375 * ((4096 * ((2 * base.PLLD_DIVN) + 1)) + misc.PLLD_SDM_DIN)) / (8 * base.PLLD_DIVM);
+    uint32_t pixelClock = (9375llu * ((4096llu * ((2 * base.PLLD_DIVN) + 1)) + misc.PLLD_SDM_DIN)) / (8 * base.PLLD_DIVM);
     uint16_t refreshRateNow = pixelClock / (DSI_CLOCK_HZ / 60);
 
     if (refreshRateNow == new_refreshRate) {
@@ -382,7 +391,7 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
 
     uint64_t expected_pixel_clock = (DSI_CLOCK_HZ * new_refreshRate) / 60;
 
-    misc.PLLD_SDM_DIN = ((8 * base.PLLD_DIVM * expected_pixel_clock) / 9375) - (4096 * ((2 * base.PLLD_DIVN)+1));
+    misc.PLLD_SDM_DIN = ((expected_pixel_clock * 8 * base.PLLD_DIVM) / 9375llu) - (4096llu * ((2 * base.PLLD_DIVN)+1));
 
     memcpy((void*)(clkVirtAddr + 0xD0), &base, 4);
     memcpy((void*)(clkVirtAddr + 0xDC), &misc, 4);
@@ -460,7 +469,7 @@ bool GetDisplayRefreshRate(uint32_t* out_refreshRate, bool internal) {
 
             My math formula allows avoiding decimals whenever possible
         */
-        uint32_t pixelClock = (9375 * ((4096 * ((2 * temp.PLLD_DIVN) + 1)) + misc.PLLD_SDM_DIN)) / (8 * temp.PLLD_DIVM);
+        uint32_t pixelClock = (9375llu * ((4096llu * ((2 * temp.PLLD_DIVN) + 1)) + misc.PLLD_SDM_DIN)) / (8 * temp.PLLD_DIVM);
         value = pixelClock / (DSI_CLOCK_HZ / 60);
     }
     *out_refreshRate = value;
@@ -1192,6 +1201,51 @@ Result handleServiceCmd(int cmd)
 
         ret = 0;
     }
+    else if (cmd == 16) // SetMinMaxHandheldRefreshRate
+    {
+        IpcParsedCommand r = {0};
+        ipcParse(&r);
+
+        struct {
+            u64 magic;
+            u64 cmd_id;
+            u32 min;
+            u32 max;
+            u64 reserved;
+        } *resp = r.Raw;
+
+        if (resp->min < 40 || resp->max >= 80)
+            ret = 0xABCD;
+        else {
+            HandheldModeRefreshRateAllowed.min = resp->min;
+            HandheldModeRefreshRateAllowed.max = resp->max;
+            ret = 0;
+        }
+        SaltySD_printf("SaltySD: cmd 16 handler\n");
+    }
+    else if (cmd == 17) // GetHandheldDisplayData
+    {
+        IpcParsedCommand r = {0};
+        ipcParse(&r);
+
+        SaltySD_printf("SaltySD: cmd 17 handler\n");
+        
+        // Ship off results
+        struct {
+            u64 magic;
+            u64 result;
+            struct displayData display;
+            u32 reserved[3];
+        } *raw;
+
+        raw = ipcPrepareHeader(&c, sizeof(*raw));
+
+        raw->magic = SFCO_MAGIC;
+        raw->display = DISPLAY_A;
+        raw->result = 0;
+
+        return 0;
+    }
     else
     {
         ret = 0xEE01;
@@ -1301,8 +1355,46 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (!isLite) {
-        ABORT_IF_FAILED(nvInitialize(), 6);
+    ABORT_IF_FAILED(nvInitialize(), 6);
+    uint32_t fd = 0;
+    if (R_SUCCEEDED(nvOpen(&fd, "/dev/nvdisp-disp0"))) {
+        Result nvrc = nvIoctl(fd, NVDISP_PANEL_GET_VENDOR_ID, &DISPLAY_A.vendorID);
+        if (R_FAILED(nvrc)) {
+            memset(&DISPLAY_A.vendorID, 0, sizeof(DISPLAY_A.vendorID));
+            SaltySD_printf("SaltySD: Couldn't retrieve NVDISP_PANEL_GET_VENDOR_ID. RC: 0x%x\n", nvrc);
+        }
+        nvClose(fd);
+        if (R_SUCCEEDED(nvrc)) {
+            char path[128] = "";
+		    snprintf(path, sizeof(path), "sdmc:/SaltySD/plugins/FPSLocker/IntDisplays/%02X%02X%02X.dat", DISPLAY_A.vendorID[0], DISPLAY_A.vendorID[1], DISPLAY_A.vendorID[2]);
+            FILE* file = fopen(path, "rb");
+            if (file) {
+                u8 min = 0;
+                u8 max = 0;
+                fread(&min, 1, 1, file);
+                fread(&max, 1, 1, file);
+                fclose(file);
+                if (min >= 40 && max < 80) {
+                    HandheldModeRefreshRateAllowed.min = min;
+                    HandheldModeRefreshRateAllowed.max = max;
+                    SaltySD_printf("SaltySD: Handheld refresh rates are set to: min %d, max %d\n", min, max);
+                }
+                else SaltySD_printf("SaltySD: Handheld refresh rates save file had invalid values: min %d, max %d, blocking display to default values: min 40, max 60\n", min, max);
+            }
+            else SaltySD_printf("SaltySD: Couldn't find file %s, handheld refresh rates are set to default values: min 40, max 60\n", path);
+        }
+    }
+    if (R_SUCCEEDED(nvOpen(&fd, "/dev/nvdisp-ctrl"))) {
+        Result nvrc = nvIoctl(fd, NVDISP_CTRL_IS_DISPLAY_OLED, &DISPLAY_A.isOLED);
+        if (R_FAILED(nvrc)) {
+            DISPLAY_A.isOLED = false;
+            SaltySD_printf("SaltySD: Couldn't retrieve NVDISP_CTRL_IS_DISPLAY_OLED. RC: 0x%x\n", nvrc);
+        }
+        else if (DISPLAY_A.isOLED) {
+            SaltySD_printf("SaltySD: Detected OLED panel. Display Sync is not available in handheld mode.\n");
+            isOLED = true;
+        }
+        nvClose(fd);
     }
     
     ABORT_IF_FAILED(ldrDmntInitialize(), 7);
