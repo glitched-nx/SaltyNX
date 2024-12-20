@@ -147,7 +147,8 @@ namespace LOCK {
 		if (masterWrite > 1)
 			return false;
 		unsafeCheck = (bool)buffer[7];
-		uint8_t start_offset = 0x10;
+		uint8_t start_offset = 0xC;
+		if (masterWrite) start_offset += 4;
 		if (*(uint32_t*)(&(buffer[8])) != start_offset)
 			return false;
 		compiledSize = buffer[6] * buffer[6];
@@ -291,9 +292,11 @@ namespace LOCK {
 	}
 
 	Result NOINLINE convertPatchToFPSTarget(uint8_t* out_buffer, uint8_t* in_buffer, uint8_t FPS, uint8_t refreshRate) {
-		memcpy(out_buffer, in_buffer, 0x10);
-		offset = 0x10;
-		uint16_t temp_offset = 0x10;
+		uint32_t header_size = 0;
+		memcpy(&header_size, &in_buffer[8], 4);
+		memcpy(out_buffer, in_buffer, header_size);
+		offset = header_size;
+		uint16_t temp_offset = header_size;
 		while(true) {
 			uint8_t OPCODE = read8(in_buffer);
 			if (OPCODE == 1 || OPCODE == 0x81) {
@@ -373,7 +376,7 @@ namespace LOCK {
 				offset += 2;
 			}
 			else if (OPCODE == 255) {
-				out_buffer[temp_offset++] = read8(in_buffer);
+				out_buffer[temp_offset++] = OPCODE;
 				break;
 			}
 			else return 0x2002;

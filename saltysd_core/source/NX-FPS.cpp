@@ -303,7 +303,10 @@ namespace NX_FPS_Math {
 			starttick2 = ((_ZN2nn2os13GetSystemTickEv_0)(Address_weaks.GetSystemTick))();
 			LOCK::overwriteRefreshRate = 0;
 			if (!configRC && FPSlock) {
-				LOCK::applyPatch(configBuffer, FPSlock, (Shared -> displaySync));
+				if (R_SUCCEEDED(LOCK::applyPatch(configBuffer, FPSlock, (Shared -> displaySync)))) {
+					(Shared -> patchApplied) = 1;
+				}
+				else (Shared -> patchApplied) = 0;
 			}
 		}
 		if (deltatick > systemtickfrequency) {
@@ -311,9 +314,6 @@ namespace NX_FPS_Math {
 			Stats.FPS = FPS_temp - 1;
 			FPS_temp = 0;
 			(Shared -> FPS) = Stats.FPS;
-			if (!configRC && FPSlock) {
-				(Shared -> patchApplied) = 1;
-			}
 		}
 
 		if (LOCK::overwriteRefreshRate != 0) (Shared -> forceOriginalRefreshRate) = true;
