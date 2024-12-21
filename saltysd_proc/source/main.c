@@ -86,6 +86,8 @@ bool cheatCheck = false;
 bool isDocked = false;
 bool dontForce60InDocked = false;
 bool matchLowestDocked = false;
+u32 docked_width = 0;
+u32 docked_height = 0;
 
 /// Edid2
 typedef struct {
@@ -142,19 +144,15 @@ u64 TIDnow;
 u64 PIDnow;
 u64 BIDnow;
 
-bool DockedModeRefreshRateAllowed[]         = { false,  //40Hz
-                                                false,  //45Hz
-                                                true,   //50Hz
-                                                false,  //55Hz
-                                                true};  //60Hz
+bool DockedModeRefreshRateAllowed1080p[] = {0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+bool DockedModeRefreshRateAllowed720p[] = {0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+const bool DockedModeRefreshRateAllowed480p[] = {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-uint8_t DockedModeRefreshRateAllowedValues[] = { 40,
-                                                 45,
-                                                 50,
-                                                 55,
-                                                 60};
+uint8_t DockedModeRefreshRateAllowedValues[] = {40, 45, 50, 55, 60, 70, 72, 75, 80, 90, 95, 100, 110, 120, 144, 150, 155, 160, 165, 170, 175, 180, 185, 200, 210, 240};
 
-static_assert(sizeof(DockedModeRefreshRateAllowedValues) == sizeof(DockedModeRefreshRateAllowed));
+static_assert(sizeof(DockedModeRefreshRateAllowedValues) == sizeof(DockedModeRefreshRateAllowed1080p));
+static_assert(sizeof(DockedModeRefreshRateAllowedValues) == sizeof(DockedModeRefreshRateAllowed720p));
+static_assert(sizeof(DockedModeRefreshRateAllowedValues) == sizeof(DockedModeRefreshRateAllowed480p));
 
 struct MinMax {
     u8 min;
@@ -212,9 +210,15 @@ struct nvdcMode {
 };
 
 void setDefaultDockedSettings() {
-    for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowed); i++) {
-        if (DockedModeRefreshRateAllowedValues[i] == 50 || DockedModeRefreshRateAllowedValues[i] == 60) DockedModeRefreshRateAllowed[i] = true;
-        else DockedModeRefreshRateAllowed[i] = false;
+    for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowedValues); i++) {
+        if (DockedModeRefreshRateAllowedValues[i] == 50 || DockedModeRefreshRateAllowedValues[i] == 60) {
+            DockedModeRefreshRateAllowed1080p[i] = true;
+            DockedModeRefreshRateAllowed720p[i] = true;
+        }
+        else {
+            DockedModeRefreshRateAllowed1080p[i] = true;
+            DockedModeRefreshRateAllowed720p[i] = false;
+        }
     }
     dontForce60InDocked = false;
     matchLowestDocked = false;
@@ -240,15 +244,37 @@ void LoadDockedModeAllowedSave() {
             return;
         }
 
-        SaltySD_printf("SaltySD: File \"%s\" was loaded! Allowed refresh rates: 60", path);
+        SaltySD_printf("SaltySD: File \"%s\" was loaded! Allowed refresh rates for 1080p: 60", path);
         fseek(file, 0x100, 0);
-        for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowed); i++) {
+        for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowedValues); i++) {
             bool temp = false;
             if (!fread(&temp, 1, 1, file))
                 break;
-            if (DockedModeRefreshRateAllowedValues[i] == 60)
+            if (DockedModeRefreshRateAllowedValues[i] == 60 && DockedModeRefreshRateAllowed1080p[i] == false) {
+                DockedModeRefreshRateAllowed1080p[2] = true;
+                DockedModeRefreshRateAllowed1080p[4] = true;
+                break;
+            }
+            DockedModeRefreshRateAllowed1080p[i] = temp;
+            if (temp == true) {
+                SaltySD_printf(", %d", DockedModeRefreshRateAllowedValues[i]);
+            }
+        }
+        SaltySD_printf("SaltySD: Allowed refresh rates for 720p: ", path);
+        fseek(file, 0x120, 0);
+        for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowedValues); i++) {
+            bool temp = false;
+            if (!fread(&temp, 1, 1, file))
+                break;
+            if (DockedModeRefreshRateAllowedValues[i] == 60) {
+                if (DockedModeRefreshRateAllowed720p[i] == false) {
+                    memcpy(&DockedModeRefreshRateAllowed720p, &DockedModeRefreshRateAllowed1080p, sizeof(DockedModeRefreshRateAllowed1080p));
+                    SaltySD_printf("Entry for 720p not detected. Copying it from 1080p entry");
+                    break;
+                }
                 continue;
-            DockedModeRefreshRateAllowed[i] = temp;
+            }
+            DockedModeRefreshRateAllowed720p[i] = temp;
             if (temp == true) {
                 SaltySD_printf(", %d", DockedModeRefreshRateAllowedValues[i]);
             }
@@ -298,6 +324,7 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
             nvClose(fd);
             return false;
         }
+        
         uint32_t h_total = DISPLAY_B.hActive + DISPLAY_B.hFrontPorch + DISPLAY_B.hSyncWidth + DISPLAY_B.hBackPorch;
         uint32_t v_total = DISPLAY_B.vActive + DISPLAY_B.vFrontPorch + DISPLAY_B.vSyncWidth + DISPLAY_B.vBackPorch;
         uint32_t refreshRateNow = ((DISPLAY_B.pclkKHz) * 1000 + 999) / (h_total * v_total);
@@ -305,7 +332,14 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
         if ((60 == new_refreshRate) || (60 == (new_refreshRate * 2)) || (60 == (new_refreshRate * 3)) || (60 == (new_refreshRate * 4))) {
             itr = 4;
         }
-        if (itr == -1) for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowed); i++) {
+        bool* DockedModeRefreshRateAllowed = 0;
+        if (DISPLAY_B.hActive == 1920 && DISPLAY_B.vActive == 1080)
+            DockedModeRefreshRateAllowed = &DockedModeRefreshRateAllowed1080p[0];
+        else if (DISPLAY_B.hActive == 1280 && DISPLAY_B.vActive == 720)
+            DockedModeRefreshRateAllowed = &DockedModeRefreshRateAllowed720p[0];
+        else
+            DockedModeRefreshRateAllowed = &DockedModeRefreshRateAllowed480p[0];
+        if (itr == -1) for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowedValues); i++) {
             if (DockedModeRefreshRateAllowed[i] != true)
                 continue;
             uint8_t val = DockedModeRefreshRateAllowedValues[i];
@@ -317,7 +351,7 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
         if (itr == -1) {
             if (!matchLowestDocked)
                 itr = 4;
-            else for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowed); i++) {
+            else for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowedValues); i++) {
                 if ((DockedModeRefreshRateAllowed[i] == true) && (new_refreshRate < DockedModeRefreshRateAllowedValues[i])) {
                     itr = i;
                     break;
@@ -325,7 +359,7 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
             }
         }
         bool increase = refreshRateNow < DockedModeRefreshRateAllowedValues[itr];
-        while(itr >= 0 && itr < sizeof(DockedModeRefreshRateAllowed) && DockedModeRefreshRateAllowed[itr] != true) {
+        while(itr >= 0 && itr < sizeof(DockedModeRefreshRateAllowedValues) && DockedModeRefreshRateAllowed[itr] != true) {
             if (!displaySync) {
                 if (increase) itr++;
                 else itr--;
@@ -338,8 +372,18 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
             return true;
         }
         
-        if (itr >= 0 && itr < sizeof(DockedModeRefreshRateAllowed)) {
+        if (itr >= 0 && itr < sizeof(DockedModeRefreshRateAllowedValues)) {
             uint32_t clock = ((h_total * v_total) * DockedModeRefreshRateAllowedValues[itr]) / 1000;
+            if (!isOLED && clock > 300000) {
+               SaltySD_printf("SaltySD: requested pixel clock exceeds limit for non-OLED models: 300 Mhz! Ignoring...\n");
+               nvClose(fd);
+               return false; 
+            }
+            else if (isOLED && clock > 600000) {
+               SaltySD_printf("SaltySD: requested pixel clock exceeds limit for OLED model: 600 Mhz! Ignoring...\n");
+               nvClose(fd);
+               return false; 
+            }
             DISPLAY_B.pclkKHz = clock;
             nvrc = nvIoctl(fd, NVDISP_VALIDATE_MODE, &DISPLAY_B);
             if (R_SUCCEEDED(nvrc)) {
@@ -448,6 +492,13 @@ bool GetDisplayRefreshRate(uint32_t* out_refreshRate, bool internal) {
                 }
                 uint32_t h_total = DISPLAY_B.hActive + DISPLAY_B.hFrontPorch + DISPLAY_B.hSyncWidth + DISPLAY_B.hBackPorch;
                 uint32_t v_total = DISPLAY_B.vActive + DISPLAY_B.vFrontPorch + DISPLAY_B.vSyncWidth + DISPLAY_B.vBackPorch;
+                if (DISPLAY_B.hActive != docked_width || DISPLAY_B.vActive != docked_height) {
+                    docked_width = DISPLAY_B.hActive;
+                    docked_height = DISPLAY_B.vActive;
+                    nvClose(fd);
+                    tick = 0;
+                    canChangeRefreshRateDocked = false;
+                }
                 uint32_t pixelClock = DISPLAY_B.pclkKHz * 1000 + 999;
                 value = pixelClock / (h_total * v_total);
             }
@@ -1154,15 +1205,47 @@ Result handleServiceCmd(int cmd)
             unsigned int Hz_50: 1;
             unsigned int Hz_55: 1;
             unsigned int Hz_60: 1;
-            unsigned int reserved: 27;
+            unsigned int Hz_70: 1;
+            unsigned int Hz_72: 1;
+            unsigned int Hz_75: 1;
+            unsigned int Hz_80: 1;
+            unsigned int Hz_90: 1;
+            unsigned int Hz_95: 1;
+            unsigned int Hz_100: 1;
+            unsigned int Hz_110: 1;
+            unsigned int Hz_120: 1;
+            unsigned int Hz_144: 1;
+            unsigned int Hz_150: 1;
+            unsigned int Hz_155: 1;
+            unsigned int Hz_160: 1;
+            unsigned int Hz_165: 1;
+            unsigned int Hz_170: 1;
+            unsigned int Hz_175: 1;
+            unsigned int Hz_180: 1;
+            unsigned int Hz_185: 1;
+            unsigned int Hz_200: 1;
+            unsigned int Hz_210: 1;
+            unsigned int Hz_240: 1;
+            unsigned int reserved: 5;
+            unsigned int tvMode: 1;
         } DockedRefreshRates;
+        uint32_t ref = 0;
 
         memcpy(&DockedRefreshRates, &(resp -> refreshRate), 4);
-        DockedModeRefreshRateAllowed[0] = DockedRefreshRates.Hz_40;
-        DockedModeRefreshRateAllowed[1] = DockedRefreshRates.Hz_45;
-        DockedModeRefreshRateAllowed[2] = DockedRefreshRates.Hz_50;
-        DockedModeRefreshRateAllowed[3] = DockedRefreshRates.Hz_55;
-        DockedModeRefreshRateAllowed[4] = true;
+        memcpy(&ref, &(resp -> refreshRate), 4);
+
+        if (DockedRefreshRates.tvMode == 0) {
+            for (int i = 0; i < sizeof(DockedModeRefreshRateAllowedValues); i++) {
+                DockedModeRefreshRateAllowed1080p[i] = (bool)(ref & (1 << i));
+            }
+            DockedModeRefreshRateAllowed1080p[4] = true;
+        }
+        else if (DockedRefreshRates.tvMode == 1) {
+            for (int i = 0; i < sizeof(DockedModeRefreshRateAllowedValues); i++) {
+                DockedModeRefreshRateAllowed720p[i] = (bool)(ref & (1 << i));
+            }
+            DockedModeRefreshRateAllowed720p[4] = true;
+        }
         SaltySD_printf("SaltySD: cmd 13 handler\n");
 
         ret = 0;
@@ -1243,6 +1326,31 @@ Result handleServiceCmd(int cmd)
         raw->magic = SFCO_MAGIC;
         raw->display = DISPLAY_A;
         raw->result = 0;
+
+        return 0;
+    }
+    else if (cmd == 18) // GetDockedOutputResolution
+    {
+        IpcParsedCommand r = {0};
+        ipcParse(&r);
+
+        SaltySD_printf("SaltySD: cmd 18 handler\n");
+        
+        // Ship off results
+        struct {
+            u64 magic;
+            u64 result;
+            u32 width;
+            u32 height;
+            u64 reserved;
+        } *raw;
+
+        raw = ipcPrepareHeader(&c, sizeof(*raw));
+
+        raw->magic = SFCO_MAGIC;
+        raw->result = !isDocked && !canChangeRefreshRateDocked;
+        raw->width = docked_width;
+        raw->height = docked_height;
 
         return 0;
     }
