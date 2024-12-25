@@ -15,6 +15,7 @@
 #include "useful.h"
 #include "dmntcht.h"
 #include <math.h>
+#include "omm.h"
 
 #define MODULE_SALTYSD 420
 #define	NVDISP_GET_MODE 0x80380204
@@ -122,6 +123,7 @@ void __appExit(void)
     fsdevUnmountAll_old();
     smExit();
     setsysExit();
+    ommExit();
 }
 
 void ABORT_IF_FAILED(Result rc, uint8_t ID) {
@@ -250,17 +252,20 @@ void LoadDockedModeAllowedSave() {
             bool temp = false;
             if (!fread(&temp, 1, 1, file))
                 break;
-            if (DockedModeRefreshRateAllowedValues[i] == 60 && DockedModeRefreshRateAllowed1080p[i] == false) {
-                DockedModeRefreshRateAllowed1080p[2] = true;
-                DockedModeRefreshRateAllowed1080p[4] = true;
-                break;
+            if (DockedModeRefreshRateAllowedValues[i] == 60) {
+                if (DockedModeRefreshRateAllowed1080p[i] == false) {
+                    DockedModeRefreshRateAllowed1080p[2] = true;
+                    DockedModeRefreshRateAllowed1080p[4] = true;
+                    break;
+                }
+                continue;
             }
             DockedModeRefreshRateAllowed1080p[i] = temp;
             if (temp == true) {
                 SaltySD_printf(", %d", DockedModeRefreshRateAllowedValues[i]);
             }
         }
-        SaltySD_printf("SaltySD: Allowed refresh rates for 720p: ", path);
+        SaltySD_printf(".\nSaltySD: Allowed refresh rates for 720p: 60", path);
         fseek(file, 0x120, 0);
         for (size_t i = 0; i < sizeof(DockedModeRefreshRateAllowedValues); i++) {
             bool temp = false;
@@ -306,7 +311,9 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
     memcpy(&base, (void*)(clkVirtAddr + 0xD0), 4);
     memcpy(&misc, (void*)(clkVirtAddr + 0xDC), 4);
     uint32_t value = ((base.PLLD_DIVN / base.PLLD_DIVM) * 10) / 4;
-    if (value == 0 || value == 80) { //We are in docked mode
+    u8 mode = 1;
+    ommGetOperationMode(&mode);
+    if ((value == 0 || value == 80) && mode) { //We are in docked mode
         if (isLite || !canChangeRefreshRateDocked)
             return false;
         uint32_t fd = 0;
@@ -375,7 +382,7 @@ bool SetDisplayRefreshRate(uint32_t new_refreshRate) {
         if (itr >= 0 && itr < sizeof(DockedModeRefreshRateAllowedValues)) {
             uint32_t clock = ((h_total * v_total) * DockedModeRefreshRateAllowedValues[itr]) / 1000;
             if (!isOLED && clock > 300000) {
-               SaltySD_printf("SaltySD: requested pixel clock exceeds limit for non-OLED models: 300 Mhz! Ignoring...\n");
+               SaltySD_printf("SaltySD: requested pixel clock exceeds limit for non-OLED models: 340 Mhz! Ignoring...\n");
                nvClose(fd);
                return false; 
             }
@@ -462,7 +469,9 @@ bool GetDisplayRefreshRate(uint32_t* out_refreshRate, bool internal) {
     memcpy(&misc, (void*)(clkVirtAddr + 0xDC), 4);
     uint32_t value = ((temp.PLLD_DIVN / temp.PLLD_DIVM) * 10) / 4;
     static uint64_t tick = 0;
-    if (value == 0 || value == 80) { //We are in docked mode
+    u8 mode = 1;
+    ommGetOperationMode(&mode);
+    if ((value == 0 || value == 80) && mode) { //We are in docked mode
         if (isLite)
             return false;
         isDocked = true;
@@ -482,6 +491,7 @@ bool GetDisplayRefreshRate(uint32_t* out_refreshRate, bool internal) {
                 canChangeRefreshRateDocked = true;
             }
         }
+
         uint32_t fd = 0;
         if (R_SUCCEEDED(nvOpen(&fd, "/dev/nvdisp-disp1"))) {
             struct nvdcMode DISPLAY_B = {0};
@@ -1512,7 +1522,7 @@ int main(int argc, char *argv[])
     serviceClose(ldrDmntSrv);
     memcpy(ldrDmntSrv, &ldrDmntClone, sizeof(Service));
 
-
+    ABORT_IF_FAILED(ommInitialize(), 11);
     FILE* file = fopen("sdmc:/SaltySD/flags/displaysync.flag", "rb");
     if (file) {
         fclose(file);
