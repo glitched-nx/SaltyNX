@@ -372,9 +372,8 @@ namespace LOCK {
 				}
 			}
 			else if (OPCODE == 3) {
-				memcpy(&out_buffer[temp_offset], &in_buffer[offset], 2);
-				temp_offset += 2;
-				offset += 2;
+				out_buffer[temp_offset++] = OPCODE;
+				out_buffer[temp_offset++] = read8(in_buffer);
 			}
 			else if (OPCODE == 255) {
 				out_buffer[temp_offset++] = OPCODE;
