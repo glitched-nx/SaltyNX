@@ -1,54 +1,59 @@
 # SaltyNX
 
-Background process for the Nintendo Switch for file/code modification
+Hintergrundprozess für die Nintendo Switch zur Datei-/Codemodifikation
 
-Created by: https://github.com/shinyquagsire23
+Erstellt von: https://github.com/shinyquagsire23
 
-This fork includes many QoL improvements and beside plugins support also supports patches. 
+Diese Abzweigung enthält viele Verbesserungen der Benutzerfreundlichkeit und unterstützt neben Plugins auch Patches.
 
-Since 0.7.0 version NX-FPS and ReverseNX-RT are an intergral part of SaltyNX Core.<br>
-Since 1.0.0 32-bit games are supported (external plugins are not supported for them).<br>
-To use ReverseNX-RT download newest overlay from [HERE](https://github.com/masagrator/ReverseNX-RT/releases)
+Seit Version 0.7.0 sind NX-FPS und ReverseNX-RT ein fester Bestandteil des SaltyNX Core.<br>
+Seit Version 1.0.0 werden 32-Bit-Spiele unterstützt (externe Plugins werden für diese nicht unterstützt).<br>
+Um ReverseNX-RT zu nutzen, lade das neueste Overlay von [HIER](https://github.com/masagrator/ReverseNX-RT/releases) herunter
 
 ![GitHub all releases](https://img.shields.io/github/downloads/masagrator/SaltyNX/total?style=for-the-badge)
 ---
 
-Patches pattern:
-- filename is symbol of function with filetype `.asm64` for 64-bit games, `.asm32` for 32-bit games,
-- inside file write with hex editor instructions that you want to put into this function,
-- put this file either to `SaltySD/patches` to make it work for every game, or to `SaltySD/patches/*titleid*` to make it work for specific game.
+Patches-Muster:
+- Dateiname ist das Symbol der Funktion mit Dateityp `.asm64` für 64-Bit-Spiele, `.asm32` für 32-Bit-Spiele
+- Schreibe in die Datei mit einem Hex-Editor die Befehle, die du in diese Funktion einfügen möchtest
+- Lege diese Datei entweder in `SaltySD/patches`, damit sie für jedes Spiel funktioniert, oder in `SaltySD/patches/*titleid*`, damit sie nur für ein bestimmtes Spiel funktioniert
 
-For additional functions you need SaltyNX-Tool
+Für zusätzliche Funktionen benötigst du SaltyNX-Tool
 
 https://github.com/masagrator/SaltyNX-Tool
 
-It is required to have FW installed at least 10.0.0 version
+Es ist erforderlich, mindestens FW Version 10.0.0 installiert zu haben
 
-No technical support for:
-- Atmosphere forks
+Kein technischer Support für:
+- Atmosphere-Abzweigungen
 - SX OS
 - Kosmos
 - ReinX
 
-Known issues:
-- Instability with some homebrews and sysmodules (like emuiibo),
-- You need to have at least Hekate 5.0.2 if you don't want issues related to Hekate,
-- Cheats using directly heap addresses may not work properly while using plugins.
+Bekannte Probleme:
+- Instabilität mit einigen Homebrews und Systemmodulen (wie emuiibo)
+- Du benötigst mindestens Hekate 5.0.2, wenn du keine Probleme im Zusammenhang mit Hekate haben möchtest
+- Cheats, die direkt Heap-Adressen verwenden, funktionieren möglicherweise nicht richtig bei der Verwendung von Plugins
 
-# How to download release:
+# So lädst du die Version herunter:
 
-For Atmosphere >=0.10.1 just put folders from archive to root of your sdcard.
+Für Atmosphere >=0.10.1 kopiere einfach die Ordner aus dem Archiv in das Hauptverzeichnis deiner SD-Karte.
 
-For Atmosphere <=0.9.4 and any other CFW rename `contents` folder to `titles`
+Für Atmosphere <=0.9.4 und alle anderen CFW benenne den Ordner `contents` in `titles` um
 
-Remember to restart Switch
+Denk daran, die Switch neu zu starten
 
+---
+
+# Danke an
+- `Cooler3D` für das Teilen seines Codes mit mir, wie er die Bildwiederholrate im Handheld-Modus in seinen Tools geändert hat, die die ersten öffentlich verfügbaren Tools waren, die dies auf HOS ermöglichten. Ich habe das als Grundlage verwendet, um meine eigene Funktion zu erstellen.
+  
 ---
 
 # Thanks to
 - `Cooler3D` for sharing code with me how he was changing handheld display refresh rate in his tools that were first publicly available tools allowing this on HOS. I have used that as basis to make my own function.
 
-# List of titles not compatible with plugins/patches
+# Liste der Titel, die nicht mit Plugins/Patches kompatibel sind
 
 | Title | plugins/all | Why? |
 | ------------- | ------------- | ------------- |
@@ -95,6 +100,6 @@ Remember to restart Switch
 | 超次次元ゲイム ネプテューヌRe;Birth2 SISTERS GENERATION | plugins | 32-bit game, not supported |
 | 神次次元ゲイム ネプテューヌRe;Birth3 V CENTURY | plugins | 32-bit game, not supported |
 
-Titles in exceptions.txt are treated as part of Blacklist, you can find it in root of repo. SaltyNX reads it from SaltySD folder. `X` at the beginning of titleid means that this game will not load any patches and plugins. `R` at the beginning of titleid means that this game will not load any patches and plugins if romfs mod for this game is installed.
+Titel in der exceptions.txt werden als Teil der Blacklist behandelt, die du im Hauptverzeichnis des Repositories findest. SaltyNX liest diese aus dem SaltySD-Ordner. Ein `X` am Anfang der Titel-ID bedeutet, dass dieses Spiel keine Patches und Plugins laden wird. Ein `R` am Anfang der Titel-ID bedeutet, dass dieses Spiel keine Patches und Plugins laden wird, wenn ein romfs-Mod für dieses Spiel installiert ist.
 
-32-bit games are ignored by default for plugins.
+32-Bit-Spiele werden standardmäßig für Plugins ignoriert.
